@@ -39,15 +39,59 @@ def domain_of(url):
     return host[4:] if host.startswith("www.") else host
 
 
-def search_web(query, max_results=8):
-    """Return a list of {title, url, snippet} from DuckDuckGo."""
+# Search engines tried in order. Cloud hosts (like Streamlit Cloud) are often
+# blocked or rate-limited by one engine while another still answers, so we
+# don't rely on a single one.
+BACKENDS = ("auto", "duckduckgo", "bing", "brave", "mojeek", "yahoo")
+
+
+def _metasearch(query, max_results):
+    for backend in BACKENDS:
+        try:
+            raw = DDGS().text(query, max_results=max_results, backend=backend)
+        except TypeError:
+            # older library version without the backend option
+            try:
+                raw = DDGS().text(query, max_results=max_results)
+            except Exception:
+                raw = []
+        except Exception:
+            continue  # this engine refused or errored; try the next one
+        if raw:
+            return raw
+    return []
+
+
+def _wikipedia_search(query, max_results=5):
+    """Last-resort fallback: Wikipedia's free public search API, which
+    doesn't block cloud servers. Returns results in the same shape."""
     try:
-        raw = DDGS().text(query, max_results=max_results)
-    except Exception as exc:
+        resp = requests.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={"action": "query", "list": "search", "srsearch": query,
+                    "format": "json", "srlimit": max_results},
+            headers={"User-Agent": "Verily/1.0 (student research project)"},
+            timeout=8,
+        )
+        hits = resp.json().get("query", {}).get("search", [])
+    except Exception:
+        return []
+    return [{
+        "title": h["title"],
+        "href": "https://en.wikipedia.org/wiki/" + h["title"].replace(" ", "_"),
+        "body": re.sub(r"<[^>]+>", "", h.get("snippet", "")),
+    } for h in hits]
+
+
+def search_web(query, max_results=8):
+    """Return a list of {title, url, snippet}, trying several engines and
+    falling back to Wikipedia so a blocked engine doesn't stop the app."""
+    raw = _metasearch(query, max_results) or _wikipedia_search(query)
+    if not raw:
         raise SearchError(
-            "The web search didn't respond. Wait a few seconds and try again. "
-            f"(Details: {exc})"
-        ) from exc
+            "None of the search engines returned results. Try rewording the "
+            "question, or wait a minute and try again."
+        )
 
     results, seen = [], set()
     for item in raw or []:

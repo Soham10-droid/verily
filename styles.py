@@ -12,6 +12,7 @@ LIGHT = {
     "ink": "#1F2421", "muted": "#6B7570", "line": "#E8E2D6",
     "accent": "#2563EB", "accent-soft": "#EEF3FD", "accent-ring": "#D7E4FB",
     "accent-hover": "#1D4ED8", "accent-border": "#9DBBF5",
+    "btn": "#1F2421", "btn-text": "#FFFFFF",
     "ok": "#16A34A", "ok-bg": "#DFF3E6",
     "warn": "#B4740E", "warn-bg": "#FBF0D9",
     "bad": "#C23B2E", "bad-bg": "#FBE6E2",
@@ -23,6 +24,7 @@ DARK = {
     "ink": "#F3EFE6", "muted": "#9A9284", "line": "#3A352C",
     "accent": "#6C93FF", "accent-soft": "#20243A", "accent-ring": "#2B3760",
     "accent-hover": "#8FACFF", "accent-border": "#4C5F99",
+    "btn": "#6C93FF", "btn-text": "#10131F",
     "ok": "#5FCB86", "ok-bg": "#17301F",
     "warn": "#E8B85B", "warn-bg": "#3A2E10",
     "bad": "#F08072", "bad-bg": "#3B1C17",
@@ -75,7 +77,7 @@ def css(dark=False):
 
 /* ================= header row ================= */
 .mast-wrap {{ opacity: 0; animation: riseIn .6s cubic-bezier(.16,1,.3,1) forwards; }}
-.mast {{ display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; margin: 0; }}
+.mast {{ display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; margin: 0; }}
 .mast h1 {{
   font-family: var(--display); font-style: italic; font-weight: 500;
   font-size: 2.6rem; letter-spacing: -0.01em; line-height: 1; margin: 0; color: var(--ink);
@@ -83,7 +85,7 @@ def css(dark=False):
 .status-pill {{
   display: inline-flex; align-items: center; gap: .45rem; font-family: var(--sans);
   font-size: .76rem; font-weight: 600; color: var(--ok); background: var(--ok-bg);
-  border-radius: 999px; padding: .32rem .8rem .32rem .65rem; transform: translateY(2px);
+  border-radius: 999px; padding: .3rem .75rem .3rem .62rem;
 }}
 .status-dot {{ width: .42rem; height: .42rem; border-radius: 50%; background: var(--ok);
   animation: statusPulse 2.2s ease-in-out infinite; }}
@@ -104,10 +106,11 @@ def css(dark=False):
   display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin: 1.3rem 0 1.7rem;
 }}
 .stage {{
-  font-family: var(--sans); font-weight: 600; font-size: .83rem; color: var(--accent);
-  background: var(--accent-soft); border: 1px solid var(--accent-ring); border-radius: 999px;
-  padding: .42rem .95rem;
+  font-family: var(--sans); font-weight: 500; font-size: .82rem; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  padding: .38rem .9rem;
 }}
+.stage b {{ color: var(--accent); font-weight: 700; margin-right: .3rem; }}
 .stage-flow .arrow {{ color: var(--muted); font-size: 1rem; }}
 
 [data-testid="stExpander"] {{
@@ -174,11 +177,11 @@ def css(dark=False):
 .stApp [data-testid="stTextInput"] div {{ background-color: transparent !important; }}
 
 [data-testid="stFormSubmitButton"] button {{
-  height: 2.95rem; border-radius: 16px; border: none; white-space: nowrap;
-  background: var(--ink); color: var(--bg); font-family: var(--sans);
+  width: 100%; height: 2.95rem; border-radius: 16px; border: none; white-space: nowrap;
+  background: var(--btn); color: var(--btn-text); font-family: var(--sans);
   font-weight: 600; font-size: .98rem; padding: 0 1.3rem; transition: background .18s;
 }}
-[data-testid="stFormSubmitButton"] button p {{ color: var(--bg) !important; }}
+[data-testid="stFormSubmitButton"] button p {{ color: var(--btn-text) !important; }}
 [data-testid="stFormSubmitButton"] button:hover {{ background: var(--accent-hover); }}
 [data-testid="stFormSubmitButton"] button:focus-visible {{ outline: 3px solid var(--accent); outline-offset: 2px; }}
 
@@ -195,7 +198,7 @@ def css(dark=False):
   box-shadow: 0 8px 16px -6px rgba(var(--shadow), .18);
 }}
 .stButton button:hover p {{ color: var(--accent-hover) !important; }}
-.chip-label {{ font-size: .78rem; color: var(--muted); margin: .3rem 0 .5rem; font-weight: 600; }}
+.stApp p.chip-label {{ font-size: .78rem; color: var(--muted); margin: .9rem 0 .45rem .2rem; font-weight: 600; letter-spacing: .01em; }}
 
 /* ================= progress ================= */
 .steps {{ list-style: none; padding: 0; margin: 1.6rem 0 0; counter-reset: s; }}
@@ -257,7 +260,7 @@ def css(dark=False):
 }}
 @keyframes stampIn {{ to {{ transform: scale(1); }} }}
 
-.tally {{ margin: .85rem .1rem 0; color: var(--muted); font-family: var(--sans); font-size: .95rem; }}
+.stApp p.tally {{ margin: .85rem .1rem 0; color: var(--muted); font-family: var(--sans); font-size: .95rem; }}
 .tally b {{ color: var(--ink); font-weight: 600; }}
 .tally .confidence {{
   display: inline-block; margin-left: .5rem; padding: .08rem .55rem; border-radius: 999px;
@@ -285,7 +288,7 @@ def css(dark=False):
 .section-title {{
   font-family: var(--sans); font-weight: 600; font-size: 1.1rem; margin: 2.8rem 0 .3rem; color: var(--ink);
 }}
-.section-sub {{ color: var(--muted); font-size: .92rem; margin: 0 0 .3rem; }}
+.stApp p.section-sub {{ color: var(--muted); font-size: .92rem; margin: 0 0 .3rem; }}
 .claim-list {{ margin-top: .6rem; }}
 .claim {{
   padding: 1rem 0 1.05rem; border-top: 1px solid var(--line);
@@ -351,6 +354,26 @@ details.draft .body p, details.draft .body li {{ font-family: var(--sans); color
 }}
 .notice b {{ color: var(--bad); }}
 .notice code {{ background: var(--surface); color: var(--ink); padding: .06rem .38rem; border-radius: 4px; font-size: .92em; }}
+
+/* ================= expander: kill Streamlit's pale default header ================= */
+[data-testid="stExpander"] details {{ border: none !important; background: transparent !important; }}
+[data-testid="stExpander"] summary, [data-testid="stExpanderHeader"] {{
+  background: var(--surface) !important; border-radius: 14px !important; padding: .85rem 1.1rem !important;
+}}
+[data-testid="stExpander"] summary:hover {{ background: var(--sunken) !important; }}
+[data-testid="stExpander"] summary p, [data-testid="stExpander"] summary span {{
+  color: var(--ink) !important; font-weight: 600 !important; font-size: .93rem !important;
+}}
+[data-testid="stExpander"] summary svg {{ color: var(--muted) !important; fill: var(--muted) !important; }}
+[data-testid="stExpanderDetails"] {{ background: transparent !important; }}
+
+/* ================= search input: no box-inside-a-box ================= */
+[data-testid="stForm"] [data-testid="stTextInput"] *,
+[data-testid="stForm"] [data-testid="stTextInput"] *:focus,
+[data-testid="stForm"] [data-testid="stTextInput"] *:focus-within {{
+  border: none !important; box-shadow: none !important; outline: none !important;
+}}
+[data-testid="stForm"] [data-testid="stTextInput"] input {{ background-color: transparent !important; }}
 
 /* dark-mode toggle */
 [data-testid="stToggle"] label p, .stCheckbox label p {{ color: var(--muted) !important; font-size: .85rem; }}

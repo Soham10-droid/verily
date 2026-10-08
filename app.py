@@ -279,8 +279,8 @@ with top_right:
     with toggle_col:
         st.toggle("Dark mode", key="dark")
 
-show('<div class="stage-flow"><span class="stage">1. Web Extraction</span>'
-     '<span class="arrow">➔</span><span class="stage">2. Source-Audited Verification</span>'
+show('<div class="stage-flow"><span class="stage"><b>1</b>Web Extraction</span>'
+     '<span class="arrow">➔</span><span class="stage"><b>2</b>Source-Audited Verification</span>'
      '</div>')
 
 with st.expander("How Verily verifies sources"):
