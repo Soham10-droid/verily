@@ -1,13 +1,20 @@
 """Agent 2: checks every claim in the draft against the real source text,
 then rewrites the answer keeping only what held up."""
 
-from ai import ask, parse_json
+from ai import AIError, ask, parse_json
 from search import format_sources
 
 CHECK_SYSTEM = (
     "You are a strict fact-checker. You compare claims to source text word by "
     "word and you are not persuaded by claims that merely sound right. "
     "You reply with JSON only."
+)
+
+CONFLICT_SYSTEM = (
+    "You compare sources against EACH OTHER, not against any draft. You only "
+    "flag a genuine factual disagreement (different numbers, dates, or "
+    "direct contradictions on the same specific fact) — not differences in "
+    "emphasis, wording, or topic coverage. You reply with JSON only."
 )
 
 VERDICTS = {"supported", "partial", "unsupported"}
@@ -62,6 +69,48 @@ Sources:
             "correction": str(item.get("correction", "")).strip(),
         })
     return claims
+
+
+def check_conflicts(question, sources):
+    """Look for sources that directly contradict each other on a specific
+    fact (e.g. different figures for the same thing). This needs real
+    language understanding — spotting that two differently-worded sentences
+    disagree — so unlike rules.py it's an LLM call, not a fixed rule.
+    Returns [] (never raises) if the check can't complete, so a flaky model
+    here never breaks the rest of the pipeline.
+    """
+    if len(sources) < 2:
+        return []
+    prompt = f"""These sources were gathered to help answer: "{question}"
+
+Check only for DIRECT factual contradictions between sources — e.g. two
+sources giving different numbers, dates, or opposite claims about the same
+specific fact. Do not flag sources that simply cover different aspects or
+use different wording for the same fact.
+
+Reply with JSON in exactly this shape:
+{{"conflicts": [{{"issue": "one short sentence describing the disagreement",
+  "sources": [1, 2]}}]}}
+
+If there are no real contradictions, reply {{"conflicts": []}}.
+
+Sources:
+{format_sources(sources)}
+"""
+    try:
+        data = parse_json(ask(prompt, system=CONFLICT_SYSTEM, json_mode=True,
+                              temperature=0, max_tokens=800))
+    except AIError:
+        return []
+
+    out = []
+    for item in (data or {}).get("conflicts") or []:
+        if not isinstance(item, dict) or not str(item.get("issue", "")).strip():
+            continue
+        cited = [int(n) for n in item.get("sources") or [] if str(n).isdigit()]
+        if len(cited) >= 2:
+            out.append({"issue": str(item["issue"]).strip(), "sources": cited})
+    return out
 
 
 def write_final(question, draft, claims, sources):
