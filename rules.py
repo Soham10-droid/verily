@@ -26,15 +26,29 @@ import re
 # in here. Anything not listed is "unclassified" rather than guessed at —
 # an unfamiliar .com site is not assumed untrustworthy, just unrated.
 HIGH_TRUST_SUFFIXES = (".gov", ".edu", ".int", ".mil")
+
+# Government, academic and research domains in country-code form, e.g.
+# isro.gov.in, iitb.ac.in, nic.in sites, gov.uk, ox.ac.uk, edu.au.
+# Without this, only US-style .gov/.edu sites counted as high trust.
+COUNTRY_HIGH_TRUST = re.compile(r"(^|\.)(gov|edu|ac|nic|res|mil)\.[a-z]{2}$")
+
 HIGH_TRUST_DOMAINS = {
+    # international
     "who.int", "nature.com", "sciencedirect.com", "ncbi.nlm.nih.gov",
     "un.org", "nasa.gov", "cdc.gov", "nih.gov", "unesco.org",
+    # India (bodies not covered by the .gov.in / .ac.in pattern)
+    "rbi.org.in", "icmr.org.in", "sebi.gov.in", "isro.gov.in",
 }
 MEDIUM_TRUST_DOMAINS = {
+    # international
     "bbc.com", "reuters.com", "apnews.com", "npr.org", "theguardian.com",
     "nytimes.com", "washingtonpost.com", "wsj.com", "economist.com",
     "time.com", "nationalgeographic.com", "scientificamerican.com",
     "smithsonianmag.com", "britannica.com", "wikipedia.org",
+    # India
+    "thehindu.com", "indianexpress.com", "hindustantimes.com",
+    "livemint.com", "business-standard.com", "ndtv.com",
+    "indiatoday.in", "timesofindia.indiatimes.com", "downtoearth.org.in",
 }
 LOW_TRUST_DOMAINS = {
     "medium.com", "blogspot.com", "wordpress.com", "tumblr.com",
@@ -42,14 +56,21 @@ LOW_TRUST_DOMAINS = {
 }
 
 
+def _matches(domain, listed):
+    """True if domain is a listed site or a subdomain of one
+    (e.g. en.wikipedia.org matches wikipedia.org)."""
+    return any(domain == d or domain.endswith("." + d) for d in listed)
+
+
 def trust_tier(domain):
     """Classify one source domain: "high" | "medium" | "low" | "unclassified"."""
     domain = domain.lower()
-    if domain.endswith(HIGH_TRUST_SUFFIXES) or domain in HIGH_TRUST_DOMAINS:
+    if (domain.endswith(HIGH_TRUST_SUFFIXES) or COUNTRY_HIGH_TRUST.search(domain)
+            or _matches(domain, HIGH_TRUST_DOMAINS)):
         return "high"
-    if domain in MEDIUM_TRUST_DOMAINS:
+    if _matches(domain, MEDIUM_TRUST_DOMAINS):
         return "medium"
-    if domain in LOW_TRUST_DOMAINS:
+    if _matches(domain, LOW_TRUST_DOMAINS):
         return "low"
     return "unclassified"
 
@@ -64,11 +85,15 @@ def best_tier(tiers):
 
 # ---------------------------------------------------------------- rules
 
-_NUMBER = re.compile(r"\d[\d,.]*%?")
+# Digits with optional internal separators ("2,400", "3.5") and an optional
+# "%". A trailing full stop or comma is NOT part of the number, so "1969."
+# at the end of a sentence still matches "1969" in the source.
+_NUMBER = re.compile(r"\d+(?:[.,]\d+)*%?")
 
 
 def _numbers_in(text):
-    return set(_NUMBER.findall(text))
+    # "2,400" and "2400" are the same number, so commas are dropped
+    return {n.replace(",", "") for n in _NUMBER.findall(text)}
 
 
 def apply_rules(claims, sources):
