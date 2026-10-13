@@ -355,6 +355,31 @@ details.draft .body p, details.draft .body li {{ font-family: var(--sans); color
 .notice b {{ color: var(--bad); }}
 .notice code {{ background: var(--surface); color: var(--ink); padding: .06rem .38rem; border-radius: 4px; font-size: .92em; }}
 
+/* ================= conversation thread + follow-ups ================= */
+.turn-divider {{ height: 1px; background: var(--line); margin: 3rem 0 0; }}
+.stApp p.turn-label {{
+  margin: 1.4rem 0 -1.6rem; font-size: .76rem; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--accent);
+}}
+.stApp p.searched-as {{ margin: -.6rem 0 1rem; font-size: .85rem; color: var(--muted); font-style: italic; }}
+.stApp p.related-label {{ margin-top: 2.6rem; }}
+
+.st-key-related {{ gap: .45rem; }}
+.st-key-related .stButton button {{
+  width: 100%; justify-content: flex-start; text-align: left; white-space: normal;
+  border-radius: 12px; padding: .65rem 1rem; font-size: .93rem;
+}}
+.st-key-related .stButton button p {{
+  white-space: normal !important; text-align: left; color: var(--ink) !important;
+}}
+.st-key-related .stButton button:hover {{ transform: translateX(3px); }}
+.st-key-new-search .stButton button, .st-key-new-search button {{
+  background: transparent; border: none; box-shadow: none; padding: .3rem 0; margin-top: .4rem;
+}}
+.st-key-new-search button p {{ color: var(--muted) !important; font-size: .88rem; text-decoration: underline; }}
+.st-key-new-search button:hover {{ background: transparent; transform: none; box-shadow: none; }}
+.st-key-new-search button:hover p {{ color: var(--accent) !important; }}
+
 /* ================= expander: kill Streamlit's pale default header ================= */
 [data-testid="stExpander"] details {{ border: none !important; background: transparent !important; }}
 [data-testid="stExpander"] summary, [data-testid="stExpanderHeader"] {{

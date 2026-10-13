@@ -7,7 +7,7 @@ import streamlit as st
 
 from ai import AIError, get_api_key
 from critic import check_claims, check_conflicts, write_final
-from researcher import write_draft
+from researcher import standalone_question, suggest_followups, write_draft
 from rules import apply_rules, confidence_score, trust_tier
 from search import SearchError, gather_sources
 from styles import GITHUB_ICON, css
@@ -36,9 +36,10 @@ TRUST_LABEL = {"high": "High-trust", "medium": "Reputable", "low": "Lower-trust"
 
 # ---------------------------------------------------------------- state
 st.session_state.setdefault("dark", False)
-st.session_state.setdefault("result", None)
+st.session_state.setdefault("thread", [])      # the current conversation: one result per turn
+st.session_state.setdefault("history", [])     # past conversations (each a thread)
 st.session_state.setdefault("run_now", False)
-st.session_state.setdefault("history", [])
+st.session_state.setdefault("pending_followup", None)
 
 
 def use_example(question):
@@ -46,9 +47,19 @@ def use_example(question):
     st.session_state.run_now = True
 
 
-def use_history(entry):
-    st.session_state.result = entry
-    st.session_state.q = entry["question"]
+def use_history(index):
+    thread = st.session_state.history[index]
+    st.session_state.thread = thread
+    st.session_state.q = thread[0]["question"]
+
+
+def use_suggestion(question):
+    st.session_state.pending_followup = question
+
+
+def new_search():
+    st.session_state.thread = []
+    st.session_state.q = ""
 
 
 # ---------------------------------------------------------------- helpers
@@ -301,6 +312,61 @@ if not get_api_key():
            "Then save the file and refresh this page.")
     st.stop()
 
+def answer(display_question, search_question, progress):
+    """Run the full pipeline and attach follow-up suggestions. Never raises:
+    errors come back as a turn with an "error" so the thread keeps going."""
+    try:
+        result = run(search_question, progress)
+    except (SearchError, AIError) as exc:
+        progress.empty()
+        return {"question": display_question, "error": ("That didn't work", html.escape(str(exc)))}
+    except Exception as exc:  # anything unexpected: show it instead of crashing
+        progress.empty()
+        return {"question": display_question, "error": (
+            "Something went wrong", html.escape(f"{type(exc).__name__}: {exc}"))}
+    result["question"] = display_question
+    if search_question != display_question:
+        result["search_query"] = search_question
+    if "error" not in result:
+        result["suggestions"] = suggest_followups(search_question, result["final"])
+    return result
+
+
+def render_turn(i, result):
+    if i > 0:
+        show('<div class="turn-divider"></div><p class="turn-label">Follow-up</p>')
+    show(f'<div class="asked">{html.escape(result["question"])}</div>')
+    if result.get("search_query"):
+        show(f'<p class="searched-as">Searched as: {html.escape(result["search_query"])}</p>')
+    if "error" in result:
+        notice(*result["error"])
+        return
+    sources = result["sources"]
+    claims = result["claims"]
+    clean = bool(claims) and all(c["verdict"] == "supported" for c in claims)
+    stamp = '<div class="stamp">✓ Verified</div>' if clean else ""
+    show(f'<div class="answer-wrap">{stamp}'
+         f'<div class="answer">{rich(result["final"], sources)}</div></div>'
+         + tally_html(claims, result.get("confidence")))
+
+    show(conflicts_html(result.get("conflicts")))
+
+    if claims:
+        show('<div class="section-title">How the draft was checked</div>'
+             '<p class="section-sub">Each claim from the first draft, compared with '
+             "the page it cited and the trust rules in rules.py.</p>" + claims_html(claims))
+
+    show('<details class="draft"><summary>Show the first draft, before checking</summary>'
+         f'<div class="body">{rich(result["draft"], sources)}</div></details>')
+
+    show('<div class="section-title">Sources</div>' + sources_html(sources))
+
+    st.download_button("Download this answer as Markdown", data=build_markdown(result),
+                       file_name=f"verily-answer-{i + 1}.md", mime="text/markdown",
+                       key=f"download-{i}")
+
+
+# ---------------------------------------------------------------- new search (top box)
 with st.form("ask", border=False, clear_on_submit=False):
     col_q, col_b = st.columns([4, 1.3], vertical_alignment="center")
     with col_q:
@@ -313,11 +379,12 @@ if st.session_state.history:
     show('<p class="chip-label">Recent</p>')
     recent = st.session_state.history[:4]
     hist_cols = st.columns(len(recent))
-    for col, entry in zip(hist_cols, recent):
-        label = entry["question"] if len(entry["question"]) <= 30 else entry["question"][:29] + "…"
-        col.button(label, on_click=use_history, args=(entry,),
-                  use_container_width=True, key=f"hist-{id(entry)}")
-elif not st.session_state.result:
+    for idx, (col, thread) in enumerate(zip(hist_cols, recent)):
+        first = thread[0]["question"]
+        label = first if len(first) <= 30 else first[:29] + "…"
+        col.button(label, on_click=use_history, args=(idx,),
+                   use_container_width=True, key=f"hist-{idx}")
+elif not st.session_state.thread:
     show('<p class="chip-label">Try one</p>')
     ex_cols = st.columns(len(EXAMPLES))
     for col, (label, question_text) in zip(ex_cols, EXAMPLES):
@@ -326,51 +393,47 @@ elif not st.session_state.result:
 question = (st.session_state.get("q") or "").strip()
 if (submitted or st.session_state.run_now) and question:
     st.session_state.run_now = False
-    progress = st.empty()
-    try:
-        st.session_state.result = run(question, progress)
-    except (SearchError, AIError) as exc:
-        progress.empty()
-        st.session_state.result = {"question": question,
-                                   "error": ("That didn't work", html.escape(str(exc)))}
-    except Exception as exc:  # anything unexpected: show it instead of crashing
-        progress.empty()
-        st.session_state.result = {"question": question, "error": (
-            "Something went wrong", html.escape(f"{type(exc).__name__}: {exc}"))}
-    else:
-        if "error" not in st.session_state.result:
-            st.session_state.history = (
-                [st.session_state.result]
-                + [h for h in st.session_state.history if h["question"] != question]
-            )[:8]
+    result = answer(question, question, st.empty())
+    thread = [result]                       # a new search starts a new conversation
+    st.session_state.thread = thread
+    if "error" not in result:
+        st.session_state.history = (
+            [thread] + [t for t in st.session_state.history if t[0]["question"] != question]
+        )[:8]
 elif submitted:
     notice("Type a question first", "The box is empty.")
 
-result = st.session_state.result
-if result:
-    show(f'<div class="asked">{html.escape(result["question"])}</div>')
-    if "error" in result:
-        notice(*result["error"])
-    else:
-        sources = result["sources"]
-        claims = result["claims"]
-        clean = bool(claims) and all(c["verdict"] == "supported" for c in claims)
-        stamp = '<div class="stamp">✓ Verified</div>' if clean else ""
-        show(f'<div class="answer-wrap">{stamp}'
-             f'<div class="answer">{rich(result["final"], sources)}</div></div>'
-             + tally_html(claims, result.get("confidence")))
+# ---------------------------------------------------------------- the conversation
+thread = st.session_state.thread
+for i, result in enumerate(thread):
+    render_turn(i, result)
 
-        show(conflicts_html(result.get("conflicts")))
+# ---------------------------------------------------------------- follow-ups
+if thread:
+    last = thread[-1]
+    suggestions = last.get("suggestions") or []
+    if suggestions:
+        show('<p class="chip-label related-label">Related</p>')
+        with st.container(key="related"):
+            for j, sq in enumerate(suggestions):
+                st.button(f"↳ {sq}", on_click=use_suggestion, args=(sq,), key=f"sugg-{len(thread)}-{j}")
 
-        if claims:
-            show('<div class="section-title">How the draft was checked</div>'
-                 '<p class="section-sub">Each claim from the first draft, compared with '
-                 "the page it cited and the trust rules in rules.py.</p>" + claims_html(claims))
+    progress = st.empty()  # sits above the follow-up box while it works
+    with st.form("followup", border=False, clear_on_submit=True):
+        col_f, col_fb = st.columns([4, 1.3], vertical_alignment="center")
+        with col_f:
+            typed = st.text_input("Follow-up", key="fu", label_visibility="collapsed",
+                                  placeholder="Ask a follow-up…", autocomplete="off")
+        with col_fb:
+            fu_submitted = st.form_submit_button("Ask")
 
-        show('<details class="draft"><summary>Show the first draft, before checking</summary>'
-             f'<div class="body">{rich(result["draft"], sources)}</div></details>')
+    st.button("Start a new search", on_click=new_search, key="new-search")
 
-        show('<div class="section-title">Sources</div>' + sources_html(sources))
-
-        st.download_button("Download this answer as Markdown", data=build_markdown(result),
-                           file_name="verily-answer.md", mime="text/markdown")
+    followup = (typed.strip() if fu_submitted else "") or st.session_state.pending_followup
+    st.session_state.pending_followup = None
+    if followup:
+        progress.markdown('<p class="searched-as">Understanding your follow-up…</p>',
+                          unsafe_allow_html=True)
+        search_q = standalone_question(thread, followup)
+        thread.append(answer(followup, search_q, progress))
+        st.rerun()
